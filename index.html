@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foto-Mapa Działek — dokumentacja ARiMR</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  :root {
+    --accent: #2d6a4f;
+    --accent-dark: #1b4332;
+    --bg: #f7f7f5;
+    --border: #d8d8d2;
+    --text: #1a1a1a;
+    --muted: #666;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  header {
+    background: var(--accent);
+    color: white;
+    padding: 16px 24px;
+  }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
+  main { max-width: 1400px; margin: 0 auto; padding: 16px; }
+
+  .panel {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .panel h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: var(--accent-dark); }
+
+  #dropzone {
+    border: 2px dashed var(--accent);
+    border-radius: 6px;
+    padding: 40px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s;
+    background: #fafaf7;
+  }
+  #dropzone:hover, #dropzone.dragover { background: #e9f0eb; }
+  #dropzone p { margin: 0; color: var(--muted); }
+  #dropzone .big { font-size: 16px; color: var(--text); margin-bottom: 6px; }
+  #files { display: none; }
+
+  #status { margin-top: 12px; font-size: 13px; color: var(--muted); }
+  progress { width: 100%; height: 8px; margin-top: 8px; }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    background: var(--accent);
+    color: white;
+    border: 0;
+    padding: 8px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  button:hover { background: var(--accent-dark); }
+  button.secondary { background: white; color: var(--accent-dark); border: 1px solid var(--border); }
+  button.secondary:hover { background: #f0f0ec; }
+
+  #meta-form { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+  #meta-form label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); }
+  #meta-form input { padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; min-width: 200px; }
+
+  #map { height: 600px; border: 1px solid var(--border); border-radius: 4px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+  th { background: #f0f0ec; font-weight: 600; position: sticky; top: 0; }
+  td.num { font-variant-numeric: tabular-nums; }
+  td.thumb img { width: 60px; height: 60px; object-fit: cover; border-radius: 3px; }
+  .skipped { color: #b94a3c; font-style: italic; }
+
+  .map-popup img { max-width: 200px; max-height: 150px; display: block; margin-bottom: 6px; border-radius: 3px; }
+  .map-popup b { display: block; margin-bottom: 2px; }
+  .map-popup .meta { font-size: 11px; color: var(--muted); }
+
+  .marker-num {
+    background: var(--accent);
+    color: white;
+    border: 2px solid white;
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    line-height: 24px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: bold;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+  }
+
+  /* print layout — for ARiMR documentation export */
+  @media print {
+    @page { size: A4; margin: 12mm; }
+    body { background: white; }
+    header { background: white; color: black; border-bottom: 2px solid black; padding: 0 0 8px; }
+    header h1 { font-size: 16px; }
+    header p { font-size: 11px; }
+    main { max-width: none; padding: 0; }
+    .no-print { display: none !important; }
+    .panel { border: 0; padding: 0; margin-bottom: 12px; box-shadow: none; }
+    .panel h2 { font-size: 13px; }
+    #map { height: 130mm; page-break-inside: avoid; }
+    table { font-size: 10px; page-break-inside: auto; }
+    tr { page-break-inside: avoid; }
+    thead { display: table-header-group; }
+    td.thumb img { width: 30px; height: 30px; }
+    .print-header {
+      display: block !important;
+      margin-bottom: 8px;
+      font-size: 11px;
+    }
+    .print-header .field { display: inline-block; margin-right: 16px; }
+  }
+  .print-header { display: none; }
+</style>
+</head>
+<body>
+
+<header class="no-print">
+  <h1>Foto-Mapa Działek</h1>
+  <p>Dokumentacja wykonania prac na działkach rolnych — ze zdjęć z GPS</p>
+</header>
+
+<main>
+
+<section class="panel no-print" id="upload-panel">
+  <h2>1. Wgraj zdjęcia</h2>
+  <label id="dropzone" for="files">
+    <p class="big">Przeciągnij zdjęcia tutaj lub kliknij, aby wybrać</p>
+    <p>Obsługiwane formaty: JPG, HEIC, TIFF (ze znacznikami EXIF GPS)</p>
+  </label>
+  <input type="file" id="files" multiple accept="image/*">
+  <progress id="progress" max="100" value="0" hidden></progress>
+  <div id="status"></div>
+</section>
+
+<section class="panel no-print" id="meta-panel" hidden>
+  <h2>2. Dane do dokumentacji</h2>
+  <form id="meta-form" onsubmit="return false;">
+    <label>Imię i nazwisko rolnika / nazwa gospodarstwa
+      <input type="text" id="meta-farmer" placeholder="np. Jan Kowalski">
+    </label>
+    <label>Numer producenta (ARiMR) — opcjonalnie
+      <input type="text" id="meta-id" placeholder="np. 0123456789">
+    </label>
+    <label>Opis prac / etap
+      <input type="text" id="meta-work" placeholder="np. koszenie łąki, działka 123/4">
+    </label>
+  </form>
+</section>
+
+<section class="panel no-print" id="controls-panel" hidden>
+  <h2>3. Eksport</h2>
+  <div class="controls">
+    <button onclick="exportXLSX()">Pobierz tabelę (XLSX)</button>
+    <button onclick="exportCSV()" class="secondary">Pobierz tabelę (CSV)</button>
+    <button onclick="window.print()" class="secondary">Drukuj / Zapisz jako PDF</button>
+    <button onclick="reset()" class="secondary">Wyczyść i zacznij od nowa</button>
+  </div>
+</section>
+
+<div class="print-header" id="print-header"></div>
+
+<section class="panel" id="map-panel" hidden>
+  <h2>Mapa</h2>
+  <div id="map"></div>
+</section>
+
+<section class="panel" id="table-panel" hidden>
+  <h2>Tabela zdjęć</h2>
+  <div style="max-height: 500px; overflow: auto;" class="no-print">
+    <table id="data-table">
+      <thead>
+        <tr>
+          <th>Nr</th>
+          <th>Plik</th>
+          <th>Data i godzina</th>
+          <th>Szerokość (N)</th>
+          <th>Długość (E)</th>
+          <th class="no-print">Podgląd</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+  <table id="data-table-print" style="display: none;">
+    <thead>
+      <tr>
+        <th>Nr</th>
+        <th>Plik</th>
+        <th>Data i godzina</th>
+        <th>Szerokość (N)</th>
+        <th>Długość (E)</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+</main>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr/dist/full.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+<script>
+let photos = [];      // {file, name, lat, lon, date, thumb}
+let skipped = [];     // {name, reason}
+let map = null;
+let markersLayer = null;
+let pathLayer = null;
+
+// ------- file input wiring -------
+const dropzone = document.getElementById('dropzone');
+const filesInput = document.getElementById('files');
+
+dropzone.addEventListener('dragover', e => { e.preventDefault(); dropzone.classList.add('dragover'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) processFiles(e.dataTransfer.files);
+});
+filesInput.addEventListener('change', e => { if (e.target.files.length) processFiles(e.target.files); });
+
+// ------- EXIF + thumbnail processing -------
+async function processFiles(fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/') || /\.(jpe?g|tiff?|heic|heif)$/i.test(f.name));
+  if (!files.length) {
+    setStatus('Nie znaleziono plików obrazów w wyborze.');
+    return;
+  }
+
+  photos = [];
+  skipped = [];
+  const progress = document.getElementById('progress');
+  progress.hidden = false;
+  progress.max = files.length;
+  progress.value = 0;
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    setStatus(`Przetwarzanie ${i+1}/${files.length}: ${f.name}`);
+    try {
+      const exif = await exifr.parse(f, { gps: true, pick: ['DateTimeOriginal', 'CreateDate', 'latitude', 'longitude', 'GPSLatitude', 'GPSLongitude'] });
+      const lat = exif?.latitude ?? null;
+      const lon = exif?.longitude ?? null;
+      const date = exif?.DateTimeOriginal || exif?.CreateDate || null;
+
+      if (lat == null || lon == null) {
+        skipped.push({ name: f.name, reason: 'brak GPS' });
+      } else {
+        const thumb = await makeThumb(f, 200);
+        photos.push({
+          file: f,
+          name: f.name,
+          lat,
+          lon,
+          date: date ? new Date(date) : null,
+          thumb
+        });
+      }
+    } catch (err) {
+      skipped.push({ name: f.name, reason: 'błąd odczytu (' + err.message + ')' });
+    }
+    progress.value = i + 1;
+  }
+
+  // sort by date (photos without date go to end, keep filename order)
+  photos.sort((a, b) => {
+    if (a.date && b.date) return a.date - b.date;
+    if (a.date) return -1;
+    if (b.date) return 1;
+    return a.name.localeCompare(b.name);
+  });
+  photos.forEach((p, i) => p.idx = i + 1);
+
+  progress.hidden = true;
+  setStatus(`Gotowe. Wczytano ${photos.length} zdjęć z GPS` + (skipped.length ? `, pominięto ${skipped.length} (bez GPS/błąd).` : '.'));
+
+  if (photos.length === 0) {
+    alert('Żadne ze zdjęć nie zawiera danych GPS. Sprawdź, czy lokalizacja była włączona przy ich robieniu.');
+    return;
+  }
+
+  document.getElementById('meta-panel').hidden = false;
+  document.getElementById('controls-panel').hidden = false;
+  document.getElementById('map-panel').hidden = false;
+  document.getElementById('table-panel').hidden = false;
+
+  renderMap();
+  renderTable();
+}
+
+function setStatus(s) { document.getElementById('status').textContent = s; }
+
+async function makeThumb(file, maxSize) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.onerror = () => resolve(null);
+      img.src = reader.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+// ------- Map rendering -------
+function renderMap() {
+  if (map) { map.remove(); map = null; }
+
+  // Base layers
+  // Geoportal HighResolution WMS supports only EPSG:4326 / 2180 — Leaflet must request tiles in 4326
+  const orto = L.tileLayer.wms('https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/HighResolution', {
+    layers: 'Raster',
+    format: 'image/jpeg',
+    transparent: false,
+    version: '1.3.0',
+    crs: L.CRS.EPSG4326,
+    attribution: '© GUGiK — Geoportal (ortofotomapa)',
+    maxZoom: 21
+  });
+  const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© Esri World Imagery',
+    maxZoom: 19
+  });
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors',
+    maxZoom: 19
+  });
+
+  // Overlay: działki ewidencyjne z numerami (KIEG — domena gugik.gov.pl)
+  const dzialki = L.tileLayer.wms('https://integracja.gugik.gov.pl/cgi-bin/KrajowaIntegracjaEwidencjiGruntow', {
+    layers: 'dzialki,numery_dzialek',
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    attribution: '© GUGiK — KIEG (działki ewidencyjne)',
+    maxZoom: 22
+  });
+
+  map = L.map('map', { layers: [orto, dzialki], preferCanvas: true });
+
+  L.control.layers(
+    { 'Ortofotomapa (Geoportal)': orto, 'Ortofoto (Esri)': esri, 'OpenStreetMap': osm },
+    { 'Działki ewidencyjne': dzialki },
+    { collapsed: false }
+  ).addTo(map);
+
+  // Markers
+  markersLayer = L.layerGroup().addTo(map);
+  const latlngs = [];
+  photos.forEach(p => {
+    const icon = L.divIcon({
+      className: 'marker-num',
+      html: String(p.idx),
+      iconSize: [28, 28],
+      iconAnchor: [14, 14]
+    });
+    const marker = L.marker([p.lat, p.lon], { icon });
+    const dateStr = p.date ? formatDate(p.date) : '(brak daty)';
+    const popup = `<div class="map-popup">
+        <img src="${p.thumb}" alt="">
+        <b>#${p.idx} — ${escapeHtml(p.name)}</b>
+        <span class="meta">${dateStr}<br>${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</span>
+      </div>`;
+    marker.bindPopup(popup, { maxWidth: 240 });
+    marker.addTo(markersLayer);
+    latlngs.push([p.lat, p.lon]);
+  });
+
+  // Track polyline
+  if (latlngs.length >= 2) {
+    pathLayer = L.polyline(latlngs, {
+      color: '#d62828',
+      weight: 3,
+      opacity: 0.85,
+      dashArray: '6,4'
+    }).addTo(map);
+  }
+
+  // Fit to bounds
+  if (latlngs.length === 1) {
+    map.setView(latlngs[0], 18);
+  } else {
+    map.fitBounds(latlngs, { padding: [40, 40] });
+  }
+}
+
+// ------- Table rendering -------
+function renderTable() {
+  const tbody = document.querySelector('#data-table tbody');
+  const tbodyPrint = document.querySelector('#data-table-print tbody');
+  tbody.innerHTML = '';
+  tbodyPrint.innerHTML = '';
+
+  photos.forEach(p => {
+    const dateStr = p.date ? formatDate(p.date) : '(brak)';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="num">${p.idx}</td>
+      <td>${escapeHtml(p.name)}</td>
+      <td class="num">${dateStr}</td>
+      <td class="num">${p.lat.toFixed(6)}</td>
+      <td class="num">${p.lon.toFixed(6)}</td>
+      <td class="thumb"><img src="${p.thumb}" alt=""></td>
+    `;
+    tbody.appendChild(tr);
+
+    const trp = document.createElement('tr');
+    trp.innerHTML = `
+      <td class="num">${p.idx}</td>
+      <td>${escapeHtml(p.name)}</td>
+      <td class="num">${dateStr}</td>
+      <td class="num">${p.lat.toFixed(6)}</td>
+      <td class="num">${p.lon.toFixed(6)}</td>
+    `;
+    tbodyPrint.appendChild(trp);
+  });
+
+  // Skipped section
+  if (skipped.length) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td colspan="6" class="skipped">Pominięto ${skipped.length} pliku/ów: ${skipped.map(s => escapeHtml(s.name) + ' (' + s.reason + ')').join(', ')}</td>`;
+    tbody.appendChild(tr);
+  }
+
+  // Print header data
+  updatePrintHeader();
+  ['meta-farmer', 'meta-id', 'meta-work'].forEach(id => {
+    document.getElementById(id).addEventListener('input', updatePrintHeader);
+  });
+}
+
+function updatePrintHeader() {
+  const farmer = document.getElementById('meta-farmer').value.trim();
+  const idnum = document.getElementById('meta-id').value.trim();
+  const work = document.getElementById('meta-work').value.trim();
+  const today = new Date().toLocaleDateString('pl-PL');
+  const dates = photos.filter(p => p.date).map(p => p.date).sort((a, b) => a - b);
+  const range = dates.length ? `${formatDateShort(dates[0])} – ${formatDateShort(dates[dates.length-1])}` : '(brak dat)';
+
+  const parts = [];
+  if (farmer) parts.push(`<span class="field"><b>Rolnik:</b> ${escapeHtml(farmer)}</span>`);
+  if (idnum) parts.push(`<span class="field"><b>Nr producenta:</b> ${escapeHtml(idnum)}</span>`);
+  if (work) parts.push(`<span class="field"><b>Prace:</b> ${escapeHtml(work)}</span>`);
+  parts.push(`<span class="field"><b>Zakres zdjęć:</b> ${range}</span>`);
+  parts.push(`<span class="field"><b>Liczba zdjęć:</b> ${photos.length}</span>`);
+  parts.push(`<span class="field"><b>Data wydruku:</b> ${today}</span>`);
+  document.getElementById('print-header').innerHTML = parts.join(' ');
+}
+
+// ------- Export -------
+function buildExportRows() {
+  return photos.map(p => ({
+    Nr: p.idx,
+    Plik: p.name,
+    'Data i godzina': p.date ? formatDate(p.date) : '',
+    'Szerokość (N)': Number(p.lat.toFixed(6)),
+    'Długość (E)': Number(p.lon.toFixed(6))
+  }));
+}
+
+function exportXLSX() {
+  const rows = buildExportRows();
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{ wch: 4 }, { wch: 32 }, { wch: 20 }, { wch: 14 }, { wch: 14 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Zdjęcia');
+  XLSX.writeFile(wb, fileName('xlsx'));
+}
+
+function exportCSV() {
+  const rows = buildExportRows();
+  const headers = Object.keys(rows[0]);
+  const csv = [
+    headers.join(';'),
+    ...rows.map(r => headers.map(h => String(r[h]).replace(/"/g, '""')).map(v => /[;"\n]/.test(v) ? `"${v}"` : v).join(';'))
+  ].join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName('csv');
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function fileName(ext) {
+  const farmer = document.getElementById('meta-farmer').value.trim().replace(/\s+/g, '_') || 'foto-mapa';
+  const stamp = new Date().toISOString().slice(0, 10);
+  return `${farmer}_${stamp}.${ext}`;
+}
+
+function reset() {
+  photos = []; skipped = [];
+  document.getElementById('meta-panel').hidden = true;
+  document.getElementById('controls-panel').hidden = true;
+  document.getElementById('map-panel').hidden = true;
+  document.getElementById('table-panel').hidden = true;
+  setStatus('');
+  filesInput.value = '';
+  if (map) { map.remove(); map = null; }
+}
+
+// ------- Helpers -------
+function pad(n) { return String(n).padStart(2, '0'); }
+function formatDate(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function formatDateShort(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+</script>
+
+</body>
+</html>
