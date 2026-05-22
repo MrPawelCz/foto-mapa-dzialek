@@ -28,7 +28,17 @@
     color: white;
     padding: 16px 24px;
   }
+  header .title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+  header .version {
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(255,255,255,0.18);
+    padding: 2px 8px;
+    border-radius: 10px;
+    letter-spacing: 0.3px;
+    font-variant-numeric: tabular-nums;
+  }
   header p { margin: 4px 0 0; font-size: 13px; opacity: 0.9; }
   main { max-width: 1400px; margin: 0 auto; padding: 16px; }
 
@@ -141,7 +151,10 @@
 <body>
 
 <header class="no-print">
-  <h1>Foto-Mapa Działek</h1>
+  <div class="title-row">
+    <h1>Foto-Mapa Działek</h1>
+    <span class="version" id="app-version">v0.3 · 2026-05-22</span>
+  </div>
   <p>Dokumentacja wykonania prac na działkach rolnych — ze zdjęć z GPS</p>
 </header>
 
